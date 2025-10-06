@@ -1,7 +1,3 @@
-Certainly! Here's a **clear and concise grammar document** for your language, based on the code and concepts you've provided. I kept it structured and straightforward to be easy to understand and implement.
-
----
-
 # Language Grammar Specification
 
 ## 1. Lexical Elements
