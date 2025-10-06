@@ -53,7 +53,7 @@ const pi: f32 = 3.14;
 
 ---
 
-### **5. Struct Definitions**
+## **5. Struct Definitions**
 
 ```ebnf
 struct_decl       ::= "struct" identifier "{" struct_body "}"
