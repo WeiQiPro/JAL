@@ -53,25 +53,31 @@ const pi: f32 = 3.14;
 
 ---
 
-## 5. Struct Definitions
+### **5. Struct Definitions**
 
 ```ebnf
-struct_decl ::= "struct" identifier "{" struct_body "}"
-struct_body ::= { member_decl | method_section }
-member_decl ::= type identifier ";"
-method_section ::= ("Modify" | "Static") method_decl+
-method_decl ::= type identifier ":" "fn" "(" [param_list] ")" [";" | block]
-param_list ::= param { "," param }
-param ::= identifier ":" type
-block ::= "{" statement* "}"
+struct_decl       ::= "struct" identifier "{" struct_body "}"
+struct_body       ::= { member_decl | method_section }
+
+member_decl       ::= type identifier ";"
+
+method_section    ::= ("Modify" | "Static") method_decl+
+method_decl       ::= type identifier ":" "fn" "(" [param_list] ")" [";" | block]
+
+param_list        ::= param { "," param }
+param             ::= identifier ":" type
+
+block             ::= "{" statement* "}"
 ```
 
-* `Modify` methods mutate struct instance (`self`).
-* `Static` methods are class-level, no `self` parameter.
+* `Modify` methods mutate struct instance (have access to `self`).
+* `Static` methods are struct-level (do **not** use `self`).
 
-**Example:**
+---
 
-```plaintext
+### ✅ **Example: Declared Struct**
+
+```zii
 struct Vec2 {
     f32 x;
     f32 y;
@@ -80,8 +86,37 @@ struct Vec2 {
         add: fn(self, v2: Vec2);
 
     Static
-        addTwo: fn(v1: Vec2, v2: Vec2);
+        Vec2 addTwo: fn(v1: Vec2, v2: Vec2);
 }
+```
+
+---
+
+### **5.1 Anonymous Structs**
+
+Anonymous structs are declared inline without a `struct` name and typically assigned to variables or constants using `:=`. They are **one-off**, read-only unless declared with `let`.
+
+```ebnf
+anon_struct_expr  ::= "{" anon_member_list "}"
+anon_member_list  ::= anon_member { ";" anon_member }
+anon_member       ::= identifier [":" type] "=" expression
+```
+
+> Notes:
+>
+> * Types are optional if the compiler can infer them.
+> * Anonymous structs are useful for configs, temporary data, and initialization patterns.
+
+---
+
+### ✅ **Example: Anonymous Struct**
+
+```zii
+const config := {
+    width: i32 = 1280;
+    height: i32 = 720;
+    title := "Game Window"; // inferred as string
+};
 ```
 
 ---
