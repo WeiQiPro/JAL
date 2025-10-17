@@ -6,7 +6,6 @@ import { DebuggerInterpreter } from "./JAL/debugger.ts";
 
 function main(_args: string[]) {
   try {
-    // Check for --debug flag
     const debugMode = _args.includes("--debug");
 
     const source = _args.find((arg) => arg.endsWith(".jal")) as string;
@@ -15,10 +14,13 @@ function main(_args: string[]) {
       console.error("Usage: deno run main.ts [--debug] <file.jal>");
       Deno.exit(1);
     }
+    let path;
+    if (source.startsWith("./")) {
+      path = source;
+    } else {
+      path = "./" + source;
+    }
 
-    const path = "./" + source;
-
-    // ✅ Check if file exists
     try {
       Deno.statSync(path);
     } catch {
@@ -38,8 +40,14 @@ function main(_args: string[]) {
     const checker = _C.check(ast);
 
     Deno.writeTextFileSync("./outputs/AST.json", JSON.stringify(ast, null, 2));
-    Deno.writeTextFileSync("./outputs/token.json", JSON.stringify(tokens, null, 2));
-    Deno.writeTextFileSync("./outputs/walker.json", JSON.stringify(checker, null, 2));
+    Deno.writeTextFileSync(
+      "./outputs/token.json",
+      JSON.stringify(tokens, null, 2),
+    );
+    Deno.writeTextFileSync(
+      "./outputs/walker.json",
+      JSON.stringify(checker, null, 2),
+    );
 
     if (checker.errors.length > 0) {
       console.log("\n=== TYPE CHECKING ERRORS ===");
@@ -55,7 +63,6 @@ function main(_args: string[]) {
       const _I = new DebuggerInterpreter();
       _I.execute(ast);
       const steps = _I.getExecutionSteps();
-      console.log("=== EXECUTION STEPS ===");
       console.log(steps.join("\n"));
     } else {
       const _I = new Interpreter();

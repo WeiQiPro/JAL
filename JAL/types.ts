@@ -37,11 +37,22 @@ export enum OperatorTokenType {
   MULTIPLY = "MULTIPLY",
   DIVIDE = "DIVIDE",
   MOD = "MOD",
+  EQUAL_EQUAL = "EQUAL_EQUAL",
+  NOT_EQUAL = "NOT_EQUAL",
+  LESS_THAN = "LESS_THAN",
+  LESS_EQUAL = "LESS_EQUAL",
+  GREATER_THAN = "GREATER_THAN",
+  GREATER_EQUAL = "GREATER_EQUAL",
 }
 
 export enum BuiltinFunctionTokenType {
   LIST_PUSH = "LIST_PUSH",
   DOT = "DOT",
+}
+
+export enum KeywordTokenType {
+  IF = "IF",
+  ELSE = "ELSE",
 }
 
 export enum MetaTokenType {
@@ -57,6 +68,7 @@ export type TokenType =
   | LiteralTokenType
   | OperatorTokenType
   | BuiltinFunctionTokenType
+  | KeywordTokenType
   | MetaTokenType;
 
 // Token interface
@@ -96,11 +108,17 @@ export function isBuiltinFunctionToken(t: Token): t is Token & { type: BuiltinFu
 
 // Operator precedence
 export const PRECEDENCE: Partial<Record<OperatorTokenType, number>> = {
-  [OperatorTokenType.MULTIPLY]: 3,
-  [OperatorTokenType.DIVIDE]: 3,
-  [OperatorTokenType.MOD]: 3,
-  [OperatorTokenType.PLUS]: 2,
-  [OperatorTokenType.MINUS]: 2,
+  [OperatorTokenType.MULTIPLY]: 4,
+  [OperatorTokenType.DIVIDE]: 4,
+  [OperatorTokenType.MOD]: 4,
+  [OperatorTokenType.PLUS]: 3,
+  [OperatorTokenType.MINUS]: 3,
+  [OperatorTokenType.EQUAL_EQUAL]: 2,
+  [OperatorTokenType.NOT_EQUAL]: 2,
+  [OperatorTokenType.LESS_THAN]: 2,
+  [OperatorTokenType.LESS_EQUAL]: 2,
+  [OperatorTokenType.GREATER_THAN]: 2,
+  [OperatorTokenType.GREATER_EQUAL]: 2,
 };
 
 // === TYPE SYSTEM ===
@@ -152,7 +170,7 @@ export function mapTypeTokenToAnnotation(typeStr: string): TypeAnnotation {
     case "void":
       return { kind: "void" };
     case "list":
-      return { kind: "list", elementType: { kind: "void" } }; //update to specific types
+      return { kind: "list", elementType: { kind: "void" } };
     default:
       throw new Error(`Unknown type annotation: ${typeStr}`);
   }
@@ -179,13 +197,13 @@ export interface BinaryExpression {
 
 export interface CallExpression {
   kind: "CallExpression";
-  callee: Expression;      // e.g. variable or member access
+  callee: Expression;
   args: Expression[];
 }
 
 export interface FunctionCallExpression {
   kind: "FunctionCallExpression";
-  callee: Expression;      // usually a Variable (function name)
+  callee: Expression;
   arguments: Expression[];
 }
 
@@ -201,7 +219,7 @@ export interface VariableDeclaration {
   name: string;
   initializer: Expression | null;
   mutable?: boolean;
-  typeAnnotation?: TypeAnnotation; // Use detailed type here
+  typeAnnotation?: TypeAnnotation;
 }
 
 export interface ExpressionStatement {
@@ -219,7 +237,7 @@ export interface FunctionDeclaration {
   name: string;
   params: Parameter[];
   body: BlockStatement;
-  returnType?: TypeAnnotation; // Use detailed type here
+  returnType?: TypeAnnotation;
 }
 
 export interface ListPushStatement {
@@ -233,13 +251,21 @@ export interface ReturnStatement {
   argument: Expression;
 }
 
+export interface IfStatement {
+  kind: "IfStatement";
+  condition: Expression;
+  consequent: BlockStatement;
+  alternate?: BlockStatement;
+}
+
 export type Statement =
   | VariableDeclaration
   | ExpressionStatement
   | BlockStatement
   | FunctionDeclaration
   | ListPushStatement
-  | ReturnStatement;
+  | ReturnStatement
+  | IfStatement;
 
 export interface Parameter {
   name: string;

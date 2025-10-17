@@ -1,0 +1,18 @@
+fn fibonacci(n: int, t: list): list {
+    let tt := []
+    tt << n
+    if (n <= 1) {
+        return tt 
+    } else {
+        let left: list = fibonacci(n - 1, t) 
+        let right: list = fibonacci(n - 2, t)
+        tt << left
+        tt << right
+        return tt 
+    }
+}
+
+fn main(): void {
+    print(fibonacci(3, []))
+    print("Done")
+}

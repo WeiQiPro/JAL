@@ -13,6 +13,7 @@ import {
   VariableDeclaration,
   RuntimeValue,
   Environment,
+  IfStatement,
 } from "./types.ts";
 import { Library } from "./lib.ts";
 
@@ -184,6 +185,9 @@ export class DebuggerInterpreter {
       case "ReturnStatement":
         this.executeReturnStatement(stmt);
         break;
+      case "IfStatement":
+        this.executeIfStatement(stmt);
+        break;
       default: {
         const unknownStmt = stmt as Record<string, unknown>;
         throw new Error(`Unknown statement kind: ${unknownStmt.kind}`);
@@ -251,6 +255,34 @@ export class DebuggerInterpreter {
     this.addStep(`Return ${JSON.stringify(value)}`);
   }
 
+  private executeIfStatement(stmt: IfStatement): void {
+    this.depth++;
+    const conditionValue = this.evaluateExpression(stmt.condition);
+    this.depth--;
+    
+    const isTruthy = this.isTruthy(conditionValue);
+    this.addStep(`If condition evaluated to: ${isTruthy}`);
+
+    if (isTruthy) {
+      this.addStep("Taking if branch");
+      this.executeBlockStatement(stmt.consequent);
+    } else if (stmt.alternate) {
+      this.addStep("Taking else branch");
+      this.executeBlockStatement(stmt.alternate);
+    } else {
+      this.addStep("No else branch, skipping");
+    }
+  }
+
+  private isTruthy(value: RuntimeValue): boolean {
+    if (value === null || value === undefined) return false;
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value === "string") return value.length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    return true;
+  }
+
   private evaluateExpression(expr: Expression): RuntimeValue {
     switch (expr.kind) {
       case "Literal":
@@ -291,15 +323,50 @@ export class DebuggerInterpreter {
     this.addStep(`Right operand: ${JSON.stringify(right)}`);
     this.depth--;
 
+    const op = expr.operator as OperatorTokenType;
+
+    // Handle comparisons
+    if (op === OperatorTokenType.EQUAL_EQUAL) {
+      const result = left === right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
+    if (op === OperatorTokenType.NOT_EQUAL) {
+      const result = left !== right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
+
     if (typeof left !== "number" || typeof right !== "number") {
       throw new Error(
         `Binary operation requires numeric operands, got ${typeof left} and ${typeof right}`
       );
     }
 
-    const op = expr.operator as OperatorTokenType;
-    let result: number;
+    // Numeric comparisons
+    if (op === OperatorTokenType.LESS_THAN) {
+      const result = left < right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
+    if (op === OperatorTokenType.LESS_EQUAL) {
+      const result = left <= right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
+    if (op === OperatorTokenType.GREATER_THAN) {
+      const result = left > right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
+    if (op === OperatorTokenType.GREATER_EQUAL) {
+      const result = left >= right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
 
+    // Arithmetic operations
+    let result: number;
     switch (op) {
       case OperatorTokenType.PLUS:
         result = left + right;
@@ -422,5 +489,10 @@ export class DebuggerInterpreter {
   // Public method for Library to evaluate expressions
   evaluateExpressionPublic(expr: Expression): RuntimeValue {
     return this.evaluateExpression(expr);
+  }
+
+  // Public method for Library to add execution steps
+  addExecutionStep(message: string): void {
+    this.addStep(message);
   }
 }

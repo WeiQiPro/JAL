@@ -4,16 +4,16 @@ import {
   Expression,
   FunctionCallExpression,
   FunctionDeclaration,
+  FunctionSymbol,
+  ListPushStatement,
   Literal,
   OperatorTokenType,
   Program,
   ReturnStatement,
   Statement,
+  Symbol,
   TypeAnnotation,
   VariableDeclaration,
-  ListPushStatement,
-  Symbol,
-  FunctionSymbol
 } from "./types.ts";
 
 const BUILT_IN_FUNCTIONS = new Set([
@@ -69,23 +69,29 @@ export class TypeChecker {
     this.scopes.pop();
   }
 
-  private defineSymbol(name: string, type: TypeAnnotation, mutable: boolean): void {
+  private defineSymbol(
+    name: string,
+    type: TypeAnnotation,
+    mutable: boolean,
+  ): void {
     const symbol: Symbol = { name, type, mutable };
-    
+
     if (this.scopes.length > 0) {
       const currentScope = this.scopes[this.scopes.length - 1];
       if (currentScope.has(name)) {
         this.error(`Variable '${name}' already defined in current scope`);
         return;
       }
-      
+
       // Check if trying to redeclare a const from outer scope
       const existingSymbol = this.resolveSymbol(name);
       if (existingSymbol && !existingSymbol.mutable) {
-        this.error(`Cannot redeclare const variable '${name}' from outer scope`);
+        this.error(
+          `Cannot redeclare const variable '${name}' from outer scope`,
+        );
         return;
       }
-      
+
       currentScope.set(name, symbol);
     } else {
       if (this.symbolTable.has(name)) {
@@ -127,8 +133,27 @@ export class TypeChecker {
       case "ReturnStatement":
         this.checkReturnStatement(stmt);
         break;
+      case "IfStatement":
+        this.checkIfStatement(stmt);
+        break;
       default:
         this.error(`Unknown statement kind: ${(stmt as any).kind}`);
+    }
+  }
+
+  private checkIfStatement(stmt: any): void {
+    const conditionType = this.checkExpression(stmt.condition);
+
+    if (conditionType.kind !== "bool") {
+      this.error(
+        `If condition must be boolean, got ${this.typeToString(conditionType)}`,
+      );
+    }
+
+    this.checkBlockStatement(stmt.consequent);
+
+    if (stmt.alternate) {
+      this.checkBlockStatement(stmt.alternate);
     }
   }
 
@@ -139,11 +164,13 @@ export class TypeChecker {
     }
 
     const initType = this.checkExpression(decl.initializer);
-    
+
     if (decl.typeAnnotation) {
       if (!this.typesMatch(decl.typeAnnotation, initType)) {
         this.error(
-          `Type mismatch for variable '${decl.name}': expected ${this.typeToString(decl.typeAnnotation)}, got ${this.typeToString(initType)}`
+          `Type mismatch for variable '${decl.name}': expected ${
+            this.typeToString(decl.typeAnnotation)
+          }, got ${this.typeToString(initType)}`,
         );
       }
     }
@@ -183,7 +210,9 @@ export class TypeChecker {
     const valueType = this.checkExpression(stmt.value);
 
     if (targetType.kind !== "list") {
-      this.error(`Cannot push to non-list type: ${this.typeToString(targetType)}`);
+      this.error(
+        `Cannot push to non-list type: ${this.typeToString(targetType)}`,
+      );
       return;
     }
 
@@ -201,7 +230,9 @@ export class TypeChecker {
     if (targetType.elementType && targetType.elementType.kind !== "void") {
       if (!this.typesMatch(targetType.elementType, valueType)) {
         this.error(
-          `Type mismatch in list push: expected ${this.typeToString(targetType.elementType)}, got ${this.typeToString(valueType)}`
+          `Type mismatch in list push: expected ${
+            this.typeToString(targetType.elementType)
+          }, got ${this.typeToString(valueType)}`,
         );
       }
     }
@@ -217,7 +248,9 @@ export class TypeChecker {
 
     if (!this.typesMatch(this.currentFunctionReturnType, exprType)) {
       this.error(
-        `Return type mismatch: expected ${this.typeToString(this.currentFunctionReturnType)}, got ${this.typeToString(exprType)}`
+        `Return type mismatch: expected ${
+          this.typeToString(this.currentFunctionReturnType)
+        }, got ${this.typeToString(exprType)}`,
       );
     }
   }
@@ -284,6 +317,26 @@ export class TypeChecker {
 
     const op = expr.operator as OperatorTokenType;
 
+    // Comparison operators return bool
+    if (
+      op === OperatorTokenType.EQUAL_EQUAL ||
+      op === OperatorTokenType.NOT_EQUAL ||
+      op === OperatorTokenType.LESS_THAN ||
+      op === OperatorTokenType.LESS_EQUAL ||
+      op === OperatorTokenType.GREATER_THAN ||
+      op === OperatorTokenType.GREATER_EQUAL
+    ) {
+      // Both sides must be numeric
+      if (!this.isNumeric(leftType) || !this.isNumeric(rightType)) {
+        this.error(
+          `Cannot compare ${this.typeToString(leftType)} and ${
+            this.typeToString(rightType)
+          }`,
+        );
+      }
+      return { kind: "bool" };
+    }
+
     // For arithmetic operations, both sides must be numeric
     if (
       op === OperatorTokenType.PLUS ||
@@ -294,7 +347,9 @@ export class TypeChecker {
     ) {
       if (!this.isNumeric(leftType) || !this.isNumeric(rightType)) {
         this.error(
-          `Cannot perform ${op} on ${this.typeToString(leftType)} and ${this.typeToString(rightType)}`
+          `Cannot perform ${op} on ${this.typeToString(leftType)} and ${
+            this.typeToString(rightType)
+          }`,
         );
         return { kind: "void" };
       }
@@ -328,7 +383,7 @@ export class TypeChecker {
 
     if (expr.arguments.length !== funcSymbol.params.length) {
       this.error(
-        `Function '${funcName}' expects ${funcSymbol.params.length} arguments, got ${expr.arguments.length}`
+        `Function '${funcName}' expects ${funcSymbol.params.length} arguments, got ${expr.arguments.length}`,
       );
       return funcSymbol.returnType;
     }
@@ -340,7 +395,9 @@ export class TypeChecker {
 
       if (!this.typesMatch(paramType, argType)) {
         this.error(
-          `Argument ${i + 1} type mismatch in call to '${funcName}': expected ${this.typeToString(paramType)}, got ${this.typeToString(argType)}`
+          `Argument ${i + 1} type mismatch in call to '${funcName}': expected ${
+            this.typeToString(paramType)
+          }, got ${this.typeToString(argType)}`,
         );
       }
     }
@@ -348,7 +405,10 @@ export class TypeChecker {
     return funcSymbol.returnType;
   }
 
-  private checkBuiltInFunctionCall(funcName: string, args: Expression[]): TypeAnnotation {
+  private checkBuiltInFunctionCall(
+    funcName: string,
+    args: Expression[],
+  ): TypeAnnotation {
     switch (funcName) {
       case "print":
         // print accepts any arguments and returns void
@@ -363,7 +423,11 @@ export class TypeChecker {
         } else {
           const argType = this.checkExpression(args[0]);
           if (argType.kind !== "string" && argType.kind !== "list") {
-            this.error(`len() requires string or list, got ${this.typeToString(argType)}`);
+            this.error(
+              `len() requires string or list, got ${
+                this.typeToString(argType)
+              }`,
+            );
           }
         }
         return { kind: "int", bits: 32 };
@@ -426,7 +490,7 @@ export class TypeChecker {
     if (t1.kind === "float" || t2.kind === "float") {
       const bits = Math.max(
         t1.kind === "float" ? t1.bits : 32,
-        t2.kind === "float" ? t2.bits : 32
+        t2.kind === "float" ? t2.bits : 32,
       );
       return { kind: "float", bits: bits as 32 | 64 };
     }

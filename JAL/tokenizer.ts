@@ -1,6 +1,7 @@
 import {
   BuiltinFunctionTokenType,
   FunctionTokenType,
+  KeywordTokenType,
   LiteralTokenType,
   MetaTokenType,
   OperatorTokenType,
@@ -176,6 +177,31 @@ export class Tokenizer {
       return;
     }
 
+    // Comparison operators
+    if (c === "=" && this.peek() === "=") {
+      this.advance();
+      this.#tokens.push({ type: OperatorTokenType.EQUAL_EQUAL });
+      return;
+    }
+
+    if (c === "!" && this.peek() === "=") {
+      this.advance();
+      this.#tokens.push({ type: OperatorTokenType.NOT_EQUAL });
+      return;
+    }
+
+    if (c === "<" && this.peek() === "=") {
+      this.advance();
+      this.#tokens.push({ type: OperatorTokenType.LESS_EQUAL });
+      return;
+    }
+
+    if (c === ">" && this.peek() === "=") {
+      this.advance();
+      this.#tokens.push({ type: OperatorTokenType.GREATER_EQUAL });
+      return;
+    }
+
     const token = Tokenizer.singleCharSymbolMap[c];
     if (token) {
       this.#tokens.push(token);
@@ -203,6 +229,8 @@ export class Tokenizer {
     "}": { type: ScopeTokenType.SCOPE_END },
     "(": { type: FunctionTokenType.FN_OPEN_PARAM },
     ")": { type: FunctionTokenType.FN_END_PARAM },
+    "<": { type: OperatorTokenType.LESS_THAN },
+    ">": { type: OperatorTokenType.GREATER_THAN },
   };
 
   private static keywordMap: Record<
@@ -212,6 +240,10 @@ export class Tokenizer {
     fn: { type: FunctionTokenType.FN },
     let: { type: VariableTokenType.LET },
     const: { type: VariableTokenType.CONST },
+    if: { type: KeywordTokenType.IF },
+    else: { type: KeywordTokenType.ELSE },
+    true: { type: LiteralTokenType.VALUE, value: true },
+    false: { type: LiteralTokenType.VALUE, value: false },
     void: { type: LiteralTokenType.TYPE, value: "void" },
     int: { type: LiteralTokenType.TYPE, value: "int" },
     float: { type: LiteralTokenType.TYPE, value: "float" },
@@ -220,7 +252,7 @@ export class Tokenizer {
     return: { type: FunctionTokenType.RETURN },
   };
 
-  get tokens() {
+  get tokens(): Token[] {
     return this.#tokens;
   }
 }

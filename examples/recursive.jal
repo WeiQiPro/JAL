@@ -1,0 +1,19 @@
+fn countdown(n: int): void {
+    print(n)
+    let next := n - 1
+    cond(next)
+}
+
+fn cond(n: int): void {
+    if (n > 0) {
+        countdown(n)
+    } else {
+        print(0)
+    }
+}
+
+fn main(): void {
+    print("Starting countdown from 5:")
+    countdown(5)
+    print("Blastoff!")
+}

@@ -5,6 +5,8 @@ import {
   FunctionCallExpression,
   FunctionDeclaration,
   FunctionTokenType,
+  IfStatement,
+  KeywordTokenType,
   ListPushStatement,
   LiteralTokenType,
   mapTypeTokenToAnnotation,
@@ -61,7 +63,9 @@ export class Parser {
 
           // Skip to the return type
           // Look for pattern: ) : TYPE
-          while (!this.isAtEnd() && this.peek().type !== SyntaxTokenType.ASSIGN_COLON) {
+          while (
+            !this.isAtEnd() && this.peek().type !== SyntaxTokenType.ASSIGN_COLON
+          ) {
             this.advance();
           }
 
@@ -96,6 +100,9 @@ export class Parser {
     if (this.match(FunctionTokenType.FN)) {
       return this.parseFunctionDeclaration();
     }
+    if (this.match(KeywordTokenType.IF)) {
+      return this.parseIfStatement();
+    }
     if (this.match(ScopeTokenType.SCOPE_OPEN)) {
       return this.parseBlockStatement();
     }
@@ -120,6 +127,36 @@ export class Parser {
     throw new Error(
       `Unexpected token ${this.peek().type} at position ${this.pos}`,
     );
+  }
+
+  private parseIfStatement(): IfStatement {
+    // Already consumed 'if'
+    this.consume(
+      FunctionTokenType.FN_OPEN_PARAM,
+      "Expected '(' after 'if'",
+    );
+
+    const condition = this.parseExpression();
+
+    this.consume(
+      FunctionTokenType.FN_END_PARAM,
+      "Expected ')' after if condition",
+    );
+
+    const consequent = this.parseBlockStatement();
+
+    let alternate: BlockStatement | undefined = undefined;
+
+    if (this.match(KeywordTokenType.ELSE)) {
+      alternate = this.parseBlockStatement();
+    }
+
+    return {
+      kind: "IfStatement",
+      condition,
+      consequent,
+      alternate,
+    };
   }
 
   private peekAhead(offset: number): Token | undefined {
@@ -386,49 +423,49 @@ export class Parser {
     return { kind: "FunctionCallExpression", callee, arguments: args };
   }
 
-private inferTypeFromExpression(expr: Expression): string {
-  if (expr.kind === "Literal") {
-    if (typeof expr.value === "number") {
-      // Check if it's a float or int
-      if (Number.isInteger(expr.value)) {
-        return "int";
-      } else {
-        return "float";
+  private inferTypeFromExpression(expr: Expression): string {
+    if (expr.kind === "Literal") {
+      if (typeof expr.value === "number") {
+        // Check if it's a float or int
+        if (Number.isInteger(expr.value)) {
+          return "int";
+        } else {
+          return "float";
+        }
       }
+      if (typeof expr.value === "string") return "string";
+      if (typeof expr.value === "boolean") return "bool";
+      if (Array.isArray(expr.value)) return "list";
+      return "void";
     }
-    if (typeof expr.value === "string") return "string";
-    if (typeof expr.value === "boolean") return "bool";
-    if (Array.isArray(expr.value)) return "list";
-    return "void";
-  }
 
-  if (expr.kind === "BinaryExpression") {
-    const leftType = this.inferTypeFromExpression(expr.left);
-    const rightType = this.inferTypeFromExpression(expr.right);
+    if (expr.kind === "BinaryExpression") {
+      const leftType = this.inferTypeFromExpression(expr.left);
+      const rightType = this.inferTypeFromExpression(expr.right);
 
-    if (leftType === "float" || rightType === "float") return "float";
-    if (leftType === "int" || rightType === "int") return "int";
+      if (leftType === "float" || rightType === "float") return "float";
+      if (leftType === "int" || rightType === "int") return "int";
 
-    return leftType !== "void" ? leftType : "int";
-  }
+      return leftType !== "void" ? leftType : "int";
+    }
 
-  if (expr.kind === "FunctionCallExpression") {
-    if (expr.callee.kind === "Variable") {
-      const funcName = expr.callee.name;
-      const returnType = this.functionReturnTypes.get(funcName);
-      if (returnType) {
-        return returnType;
+    if (expr.kind === "FunctionCallExpression") {
+      if (expr.callee.kind === "Variable") {
+        const funcName = expr.callee.name;
+        const returnType = this.functionReturnTypes.get(funcName);
+        if (returnType) {
+          return returnType;
+        }
       }
+      return "void";
     }
+
+    if (expr.kind === "Variable") {
+      return "void";
+    }
+
     return "void";
   }
-
-  if (expr.kind === "Variable") {
-    return "void";
-  }
-
-  return "void";
-}
 
   private match(...types: TokenType[]): boolean {
     for (const type of types) {

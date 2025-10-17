@@ -1,6 +1,7 @@
 import {
   BinaryExpression,
   BlockStatement,
+  Environment,
   Expression,
   FunctionCallExpression,
   FunctionDeclaration,
@@ -9,10 +10,9 @@ import {
   OperatorTokenType,
   Program,
   ReturnStatement,
+  RuntimeValue,
   Statement,
   VariableDeclaration,
-  RuntimeValue,
-  Environment,
 } from "./types.ts";
 import { Library } from "./lib.ts";
 
@@ -47,7 +47,10 @@ export class Interpreter {
 
       // Second pass: execute statements (skip function declarations and expression statements)
       for (const stmt of program.body) {
-        if (stmt.kind === "FunctionDeclaration" || stmt.kind === "ExpressionStatement") {
+        if (
+          stmt.kind === "FunctionDeclaration" ||
+          stmt.kind === "ExpressionStatement"
+        ) {
           continue;
         }
         this.executeStatement(stmt);
@@ -59,7 +62,7 @@ export class Interpreter {
         this.shouldReturn = false;
         this.returnValue = undefined;
         const mainFunc = this.functions.get("main")!;
-        
+
         this.pushEnvironment();
         this.executeBlockStatement(mainFunc.body);
         this.popEnvironment();
@@ -93,7 +96,7 @@ export class Interpreter {
   private defineVariable(
     name: string,
     value: RuntimeValue,
-    mutable: boolean
+    mutable: boolean,
   ): void {
     if (this.currentEnv.variables.has(name)) {
       throw new Error(`Variable '${name}' already defined in current scope`);
@@ -151,11 +154,35 @@ export class Interpreter {
       case "ReturnStatement":
         this.executeReturnStatement(stmt);
         break;
+      case "IfStatement":
+        this.executeIfStatement(stmt);
+        break;
       default: {
         const unknownStmt = stmt as Record<string, unknown>;
         throw new Error(`Unknown statement kind: ${unknownStmt.kind}`);
       }
     }
+  }
+
+  private executeIfStatement(stmt: any): void {
+    const conditionValue = this.evaluateExpression(stmt.condition);
+
+    const isTruthy = this.isTruthy(conditionValue);
+
+    if (isTruthy) {
+      this.executeBlockStatement(stmt.consequent);
+    } else if (stmt.alternate) {
+      this.executeBlockStatement(stmt.alternate);
+    }
+  }
+
+  private isTruthy(value: RuntimeValue): boolean {
+    if (value === null || value === undefined) return false;
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value === "string") return value.length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    return true;
   }
 
   private executeVariableDeclaration(decl: VariableDeclaration): void {
@@ -185,7 +212,7 @@ export class Interpreter {
 
     if (!Array.isArray(target)) {
       throw new Error(
-        `Cannot push to non-list type: ${typeof target}`
+        `Cannot push to non-list type: ${typeof target}`,
       );
     }
 
@@ -232,47 +259,62 @@ export class Interpreter {
     return this.getVariable(varName);
   }
 
-  private evaluateBinaryExpression(expr: BinaryExpression): RuntimeValue {
-    const left = this.evaluateExpression(expr.left);
-    const right = this.evaluateExpression(expr.right);
+private evaluateBinaryExpression(expr: BinaryExpression): RuntimeValue {
+  const left = this.evaluateExpression(expr.left);
+  const right = this.evaluateExpression(expr.right);
 
-    if (typeof left !== "number" || typeof right !== "number") {
-      throw new Error(
-        `Binary operation requires numeric operands, got ${typeof left} and ${typeof right}`
-      );
-    }
+  const op = expr.operator as OperatorTokenType;
 
-    const op = expr.operator as OperatorTokenType;
-    let result: number;
-
-    switch (op) {
-      case OperatorTokenType.PLUS:
-        result = left + right;
-        break;
-      case OperatorTokenType.MINUS:
-        result = left - right;
-        break;
-      case OperatorTokenType.MULTIPLY:
-        result = left * right;
-        break;
-      case OperatorTokenType.DIVIDE:
-        if (right === 0) {
-          throw new Error("Division by zero");
-        }
-        result = left / right;
-        break;
-      case OperatorTokenType.MOD:
-        if (right === 0) {
-          throw new Error("Modulo by zero");
-        }
-        result = left % right;
-        break;
-      default:
-        throw new Error(`Unknown operator: ${op}`);
-    }
-
-    return result;
+  // Handle comparisons
+  if (op === OperatorTokenType.EQUAL_EQUAL) {
+    return left === right;
   }
+  if (op === OperatorTokenType.NOT_EQUAL) {
+    return left !== right;
+  }
+
+  // Numeric comparisons
+  if (typeof left !== "number" || typeof right !== "number") {
+    throw new Error(
+      `Comparison requires numeric operands, got ${typeof left} and ${typeof right}`
+    );
+  }
+
+  if (op === OperatorTokenType.LESS_THAN) {
+    return left < right;
+  }
+  if (op === OperatorTokenType.LESS_EQUAL) {
+    return left <= right;
+  }
+  if (op === OperatorTokenType.GREATER_THAN) {
+    return left > right;
+  }
+  if (op === OperatorTokenType.GREATER_EQUAL) {
+    return left >= right;
+  }
+
+  // Arithmetic operations
+  switch (op) {
+    case OperatorTokenType.PLUS:
+      return left + right;
+    case OperatorTokenType.MINUS:
+      return left - right;
+    case OperatorTokenType.MULTIPLY:
+      return left * right;
+    case OperatorTokenType.DIVIDE:
+      if (right === 0) {
+        throw new Error("Division by zero");
+      }
+      return left / right;
+    case OperatorTokenType.MOD:
+      if (right === 0) {
+        throw new Error("Modulo by zero");
+      }
+      return left % right;
+    default:
+      throw new Error(`Unknown operator: ${op}`);
+  }
+}
 
   private evaluateFunctionCall(expr: FunctionCallExpression): RuntimeValue {
     if (expr.callee.kind !== "Variable") {
@@ -280,7 +322,7 @@ export class Interpreter {
     }
 
     const funcName = expr.callee.name;
-    
+
     if (this.lib.isBuiltIn(funcName)) {
       return this.lib.call(funcName, expr.arguments);
     }
@@ -293,13 +335,11 @@ export class Interpreter {
 
     if (expr.arguments.length !== func.params.length) {
       throw new Error(
-        `Function '${funcName}' expects ${func.params.length} arguments, got ${expr.arguments.length}`
+        `Function '${funcName}' expects ${func.params.length} arguments, got ${expr.arguments.length}`,
       );
     }
 
-    const argValues = expr.arguments.map((arg) =>
-      this.evaluateExpression(arg)
-    );
+    const argValues = expr.arguments.map((arg) => this.evaluateExpression(arg));
 
     this.pushEnvironment();
 
