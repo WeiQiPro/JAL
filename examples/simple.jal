@@ -19,7 +19,9 @@ fn main(): void {
     let sum := add(a, b)
     let unsum := sub(c, d)
 
-    y << [4, 3, 2, 1]
+    if (sum >= 17.0) {
+        y << [4, 3, 2, 1]
+    }
 
     print(y)
     print(x)
