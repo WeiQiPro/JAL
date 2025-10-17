@@ -20,7 +20,7 @@ const BUILT_IN_FUNCTIONS = new Set([
   "print",
   "len",
   "type",
-  "toString",
+  "stringify",
   "toNumber",
 ]);
 
@@ -37,19 +37,29 @@ export class TypeChecker {
     this.functionTable.clear();
     this.scopes = [];
 
-    // First pass: collect function declarations
     for (const stmt of program.body) {
       if (stmt.kind === "FunctionDeclaration") {
         this.registerFunction(stmt);
       }
     }
 
-    // Second pass: check the program
-    for (const stmt of program.body) {
-      this.checkStatement(stmt);
-    }
+    this.checkStatementsWithInference(program.body);
 
     return { errors: this.errors };
+  }
+
+  private checkStatementsWithInference(statements: Statement[]): void {
+    // Pass 1: Infer types for all variable declarations in this scope
+    for (const stmt of statements) {
+      if (stmt.kind === "VariableDeclaration") {
+        this.registerVariableDeclaration(stmt);
+      }
+    }
+
+    // Pass 2: Check all statements
+    for (const stmt of statements) {
+      this.checkStatement(stmt);
+    }
   }
 
   private registerFunction(func: FunctionDeclaration): void {
@@ -59,6 +69,98 @@ export class TypeChecker {
       returnType: func.returnType || { kind: "void" },
     };
     this.functionTable.set(func.name, funcSymbol);
+  }
+
+  private registerVariableDeclaration(decl: VariableDeclaration): void {
+    if (!decl.initializer) return;
+
+    let typeToUse = decl.typeAnnotation;
+
+    if (!typeToUse) {
+      typeToUse = this.inferExpressionType(decl.initializer);
+    }
+
+    this.defineSymbol(decl.name, typeToUse, decl.mutable ?? true);
+  }
+
+  private inferExpressionType(expr: Expression): TypeAnnotation {
+    switch (expr.kind) {
+      case "Literal":
+        return this.checkLiteral(expr);
+      case "Variable":
+        return this.checkVariable(expr);
+      case "BinaryExpression":
+        return this.inferBinaryExpressionType(expr);
+      case "FunctionCallExpression":
+        return this.inferFunctionCallType(expr);
+      case "ListExpression":
+        return this.inferListExpressionType(expr);
+      case "IndexAccess":
+        return this.inferIndexAccessType(expr);
+      default:
+        return { kind: "void" };
+    }
+  }
+
+  private inferBinaryExpressionType(expr: BinaryExpression): TypeAnnotation {
+    const leftType = this.inferExpressionType(expr.left);
+    const rightType = this.inferExpressionType(expr.right);
+    const op = expr.operator as OperatorTokenType;
+
+    if (
+      op === OperatorTokenType.EQUAL_EQUAL ||
+      op === OperatorTokenType.NOT_EQUAL ||
+      op === OperatorTokenType.LESS_THAN ||
+      op === OperatorTokenType.LESS_EQUAL ||
+      op === OperatorTokenType.GREATER_THAN ||
+      op === OperatorTokenType.GREATER_EQUAL
+    ) {
+      return { kind: "bool" };
+    }
+
+    if (
+      op === OperatorTokenType.PLUS ||
+      op === OperatorTokenType.MINUS ||
+      op === OperatorTokenType.MULTIPLY ||
+      op === OperatorTokenType.DIVIDE ||
+      op === OperatorTokenType.MOD
+    ) {
+      if (op === OperatorTokenType.DIVIDE && leftType.kind === "int" && rightType.kind === "int") {
+        return leftType;
+      }
+      return this.widerType(leftType, rightType);
+    }
+
+    return { kind: "void" };
+  }
+
+  private inferFunctionCallType(expr: FunctionCallExpression): TypeAnnotation {
+    if (expr.callee.kind !== "Variable") return { kind: "void" };
+
+    const funcName = expr.callee.name;
+    const funcSymbol = this.functionTable.get(funcName);
+
+    if (funcSymbol) {
+      return funcSymbol.returnType;
+    }
+
+    return { kind: "void" };
+  }
+
+  private inferListExpressionType(expr: any): TypeAnnotation {
+    if (expr.elements.length === 0) {
+      return { kind: "list", elementType: { kind: "void" } };
+    }
+    const firstType = this.inferExpressionType(expr.elements[0]);
+    return { kind: "list", elementType: firstType };
+  }
+
+  private inferIndexAccessType(expr: any): TypeAnnotation {
+    const objType = this.inferExpressionType(expr.object);
+    if (objType.kind === "list") {
+      return objType.elementType;
+    }
+    return { kind: "void" };
   }
 
   private pushScope(): void {
@@ -83,7 +185,6 @@ export class TypeChecker {
         return;
       }
 
-      // Check if trying to redeclare a const from outer scope
       const existingSymbol = this.resolveSymbol(name);
       if (existingSymbol && !existingSymbol.mutable) {
         this.error(
@@ -103,13 +204,11 @@ export class TypeChecker {
   }
 
   private resolveSymbol(name: string): Symbol | undefined {
-    // Search from innermost to outermost scope
     for (let i = this.scopes.length - 1; i >= 0; i--) {
       if (this.scopes[i].has(name)) {
         return this.scopes[i].get(name);
       }
     }
-    // Search global scope
     return this.symbolTable.get(name);
   }
 
@@ -136,9 +235,72 @@ export class TypeChecker {
       case "IfStatement":
         this.checkIfStatement(stmt);
         break;
+      case "WhileStatement":
+        this.checkWhileStatement(stmt);
+        break;
+      case "ForStatement":
+        this.checkForStatement(stmt);
+        break;
+      case "AssignmentStatement":
+        this.checkAssignmentStatement(stmt);
+        break;
       default:
         this.error(`Unknown statement kind: ${(stmt as any).kind}`);
     }
+  }
+
+  private checkAssignmentStatement(stmt: any): void {
+    const symbol = this.resolveSymbol(stmt.target);
+    if (!symbol) {
+      this.error(`Undefined variable: '${stmt.target}'`);
+      return;
+    }
+    if (!symbol.mutable) {
+      this.error(`Cannot assign to immutable variable '${stmt.target}'`);
+      return;
+    }
+    const valueType = this.checkExpression(stmt.value);
+    if (!this.typesMatch(symbol.type, valueType)) {
+      this.error(
+        `Type mismatch: cannot assign ${this.typeToString(valueType)} to ${
+          this.typeToString(symbol.type)
+        }`,
+      );
+    }
+  }
+
+  private checkWhileStatement(stmt: any): void {
+    const conditionType = this.checkExpression(stmt.condition);
+    if (conditionType.kind !== "bool") {
+      this.error(
+        `While condition must be boolean, got ${
+          this.typeToString(conditionType)
+        }`,
+      );
+    }
+    this.checkBlockStatement(stmt.body);
+  }
+
+  private checkForStatement(stmt: any): void {
+    const iterableType = this.checkExpression(stmt.iterable);
+
+    if (iterableType.kind !== "list") {
+      this.error(
+        `For loop requires list, got ${this.typeToString(iterableType)}`,
+      );
+      return;
+    }
+
+    this.pushScope();
+
+    if (stmt.isIndex) {
+      this.defineSymbol(stmt.variable, { kind: "int", bits: 32 }, false);
+    } else {
+      this.defineSymbol(stmt.variable, iterableType.elementType, false);
+    }
+
+    this.checkBlockStatement(stmt.body);
+    this.popScope();
   }
 
   private checkIfStatement(stmt: any): void {
@@ -174,16 +336,11 @@ export class TypeChecker {
         );
       }
     }
-
-    const typeToUse = decl.typeAnnotation || initType;
-    this.defineSymbol(decl.name, typeToUse, decl.mutable ?? true);
   }
 
   private checkBlockStatement(block: BlockStatement): void {
     this.pushScope();
-    for (const stmt of block.body) {
-      this.checkStatement(stmt);
-    }
+    this.checkStatementsWithInference(block.body);
     this.popScope();
   }
 
@@ -193,13 +350,11 @@ export class TypeChecker {
 
     this.pushScope();
 
-    // Define parameters in function scope
     for (const param of func.params) {
       this.defineSymbol(param.name, param.type, false);
     }
 
-    // Check function body
-    this.checkBlockStatement(func.body);
+    this.checkStatementsWithInference(func.body.body);
 
     this.popScope();
     this.currentFunctionReturnType = prevReturnType;
@@ -216,7 +371,6 @@ export class TypeChecker {
       return;
     }
 
-    // Check if target is mutable
     if (stmt.target.kind === "Variable") {
       const varName = (stmt.target as any).name;
       const symbol = this.resolveSymbol(varName);
@@ -226,7 +380,6 @@ export class TypeChecker {
       }
     }
 
-    // If list has element type, check compatibility
     if (targetType.elementType && targetType.elementType.kind !== "void") {
       if (!this.typesMatch(targetType.elementType, valueType)) {
         this.error(
@@ -241,6 +394,17 @@ export class TypeChecker {
   private checkReturnStatement(stmt: ReturnStatement): void {
     if (!this.currentFunctionReturnType) {
       this.error("Return statement outside of function");
+      return;
+    }
+
+    if (!stmt.argument) {
+      if (this.currentFunctionReturnType.kind !== "void") {
+        this.error(
+          `Function expects return value of type ${
+            this.typeToString(this.currentFunctionReturnType)
+          }, but got empty return`,
+        );
+      }
       return;
     }
 
@@ -265,10 +429,42 @@ export class TypeChecker {
         return this.checkBinaryExpression(expr);
       case "FunctionCallExpression":
         return this.checkFunctionCall(expr);
+      case "ListExpression":
+        return this.checkListExpression(expr);
+      case "IndexAccess":
+        return this.checkIndexAccess(expr);
       default:
         this.error(`Unknown expression kind: ${(expr as any).kind}`);
         return { kind: "void" };
     }
+  }
+
+  private checkListExpression(expr: any): TypeAnnotation {
+    if (expr.elements.length === 0) {
+      return { kind: "list", elementType: { kind: "void" } };
+    }
+    const firstType = this.checkExpression(expr.elements[0]);
+    for (const elem of expr.elements) {
+      const elemType = this.checkExpression(elem);
+      if (!this.typesMatch(firstType, elemType)) {
+        this.error("List elements must all be the same type");
+      }
+    }
+    return { kind: "list", elementType: firstType };
+  }
+
+  private checkIndexAccess(expr: any): TypeAnnotation {
+    const objType = this.checkExpression(expr.object);
+    const indexType = this.checkExpression(expr.index);
+
+    if (objType.kind !== "list") {
+      this.error(`Cannot index non-list type: ${this.typeToString(objType)}`);
+      return { kind: "void" };
+    }
+    if (indexType.kind !== "int") {
+      this.error(`Index must be integer, got ${this.typeToString(indexType)}`);
+    }
+    return objType.elementType;
   }
 
   private checkLiteral(lit: Literal): TypeAnnotation {
@@ -277,7 +473,6 @@ export class TypeChecker {
     }
 
     if (typeof lit.value === "number") {
-      // Check if it's a float or int
       if (Number.isInteger(lit.value)) {
         return { kind: "int", bits: 32 };
       } else {
@@ -314,10 +509,8 @@ export class TypeChecker {
   private checkBinaryExpression(expr: BinaryExpression): TypeAnnotation {
     const leftType = this.checkExpression(expr.left);
     const rightType = this.checkExpression(expr.right);
-
     const op = expr.operator as OperatorTokenType;
 
-    // Comparison operators return bool
     if (
       op === OperatorTokenType.EQUAL_EQUAL ||
       op === OperatorTokenType.NOT_EQUAL ||
@@ -326,7 +519,6 @@ export class TypeChecker {
       op === OperatorTokenType.GREATER_THAN ||
       op === OperatorTokenType.GREATER_EQUAL
     ) {
-      // Both sides must be numeric
       if (!this.isNumeric(leftType) || !this.isNumeric(rightType)) {
         this.error(
           `Cannot compare ${this.typeToString(leftType)} and ${
@@ -337,7 +529,6 @@ export class TypeChecker {
       return { kind: "bool" };
     }
 
-    // For arithmetic operations, both sides must be numeric
     if (
       op === OperatorTokenType.PLUS ||
       op === OperatorTokenType.MINUS ||
@@ -351,10 +542,12 @@ export class TypeChecker {
             this.typeToString(rightType)
           }`,
         );
-        return { kind: "void" };
       }
 
-      // Return the wider type
+      if (op === OperatorTokenType.DIVIDE && leftType.kind === "int" && rightType.kind === "int") {
+        return leftType;
+      }
+
       return this.widerType(leftType, rightType);
     }
 
@@ -369,8 +562,8 @@ export class TypeChecker {
 
     const funcName = expr.callee.name;
 
-    // Check if it's a built-in function
-    if (BUILT_IN_FUNCTIONS.has(funcName)) {
+    const BUILT_IN = new Set(["print", "len", "type", "stringify", "toNumber"]);
+    if (BUILT_IN.has(funcName)) {
       return this.checkBuiltInFunctionCall(funcName, expr.arguments);
     }
 
@@ -388,7 +581,6 @@ export class TypeChecker {
       return funcSymbol.returnType;
     }
 
-    // Check argument types
     for (let i = 0; i < expr.arguments.length; i++) {
       const argType = this.checkExpression(expr.arguments[i]);
       const paramType = funcSymbol.params[i].type;
@@ -411,13 +603,11 @@ export class TypeChecker {
   ): TypeAnnotation {
     switch (funcName) {
       case "print":
-        // print accepts any arguments and returns void
         for (const arg of args) {
           this.checkExpression(arg);
         }
         return { kind: "void" };
       case "len":
-        // len returns int
         if (args.length !== 1) {
           this.error("len() expects 1 argument");
         } else {
@@ -432,23 +622,20 @@ export class TypeChecker {
         }
         return { kind: "int", bits: 32 };
       case "type":
-        // type returns string
         if (args.length !== 1) {
           this.error("type() expects 1 argument");
         } else {
           this.checkExpression(args[0]);
         }
         return { kind: "string" };
-      case "toString":
-        // toString returns string
+      case "stringify":
         if (args.length !== 1) {
-          this.error("toString() expects 1 argument");
+          this.error("stringify() expects 1 argument");
         } else {
           this.checkExpression(args[0]);
         }
         return { kind: "string" };
       case "toNumber":
-        // toNumber returns int
         if (args.length !== 1) {
           this.error("toNumber() expects 1 argument");
         } else {
@@ -486,7 +673,6 @@ export class TypeChecker {
   }
 
   private widerType(t1: TypeAnnotation, t2: TypeAnnotation): TypeAnnotation {
-    // If either is float, result is float
     if (t1.kind === "float" || t2.kind === "float") {
       const bits = Math.max(
         t1.kind === "float" ? t1.bits : 32,
@@ -495,7 +681,6 @@ export class TypeChecker {
       return { kind: "float", bits: bits as 32 | 64 };
     }
 
-    // Both are int, return the wider int
     if (t1.kind === "int" && t2.kind === "int") {
       const bits = Math.max(t1.bits, t2.bits);
       return { kind: "int", bits: bits as 8 | 16 | 32 | 64 };

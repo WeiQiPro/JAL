@@ -1,4 +1,5 @@
 import {
+  BracketTokenType,
   BuiltinFunctionTokenType,
   FunctionTokenType,
   KeywordTokenType,
@@ -39,8 +40,6 @@ export class Tokenizer {
           type: LiteralTokenType.VALUE,
           value: this.readString(),
         });
-      } else if (char === "[") {
-        this.readList();
       } else {
         this.tokenizeSymbol();
       }
@@ -63,9 +62,27 @@ export class Tokenizer {
   private skipWhitespace() {
     while (true) {
       const ch = this.peek();
-      if (ch === undefined || !/\s/.test(ch)) break;
-      this.advance();
+      if (ch === undefined) break;
+
+      if (/\s/.test(ch)) {
+        this.advance();
+      } else if (ch === "/" && this.peekAhead(1) === "/") {
+        // Skip comment
+        this.advance(); // first /
+        this.advance(); // second /
+        while (this.peek() !== undefined && this.peek() !== "\n") {
+          this.advance();
+        }
+      } else {
+        break;
+      }
     }
+  }
+
+  private peekAhead(offset: number): string | undefined {
+    const idx = this.pos + offset;
+    if (idx >= this.src.length) return undefined;
+    return this.src[idx];
   }
 
   private isAlpha(char: string | undefined): boolean {
@@ -125,37 +142,14 @@ export class Tokenizer {
     return result;
   }
 
-  private readList() {
-    this.advance(); // skip '['
-    const values: (number | string)[] = [];
-    while (true) {
-      this.skipWhitespace();
-      const ch = this.peek();
-      if (ch === undefined) throw new Error("Unterminated list literal");
-      if (ch === "]") break;
-
-      if (this.isDigit(ch)) {
-        values.push(this.readNumber());
-      } else if (ch === '"') {
-        values.push(this.readString());
-      } else {
-        throw new Error(`Unexpected character in list: '${ch}'`);
-      }
-
-      this.skipWhitespace();
-
-      if (this.peek() === ",") {
-        this.advance();
-      }
-    }
-    this.advance(); // skip ']'
-    this.#tokens.push({ type: LiteralTokenType.VALUE, value: values });
-  }
-
   private tokenizeWord(word: string) {
     const token = Tokenizer.keywordMap[word];
     if (token) {
-      this.#tokens.push(token);
+      const properToken: Token = {
+        type: token.type,
+        ...(token.value !== undefined && { value: token.value }),
+      };
+      this.#tokens.push(properToken);
     } else {
       this.#tokens.push({ type: VariableTokenType.VARIABLE, value: word });
     }
@@ -177,7 +171,6 @@ export class Tokenizer {
       return;
     }
 
-    // Comparison operators
     if (c === "=" && this.peek() === "=") {
       this.advance();
       this.#tokens.push({ type: OperatorTokenType.EQUAL_EQUAL });
@@ -202,6 +195,7 @@ export class Tokenizer {
       return;
     }
 
+    // Single character operators
     const token = Tokenizer.singleCharSymbolMap[c];
     if (token) {
       this.#tokens.push(token);
@@ -231,6 +225,8 @@ export class Tokenizer {
     ")": { type: FunctionTokenType.FN_END_PARAM },
     "<": { type: OperatorTokenType.LESS_THAN },
     ">": { type: OperatorTokenType.GREATER_THAN },
+    "[": { type: BracketTokenType.BRACKET_OPEN },
+    "]": { type: BracketTokenType.BRACKET_CLOSE },
   };
 
   private static keywordMap: Record<
@@ -242,6 +238,10 @@ export class Tokenizer {
     const: { type: VariableTokenType.CONST },
     if: { type: KeywordTokenType.IF },
     else: { type: KeywordTokenType.ELSE },
+    while: { type: KeywordTokenType.WHILE },
+    for: { type: KeywordTokenType.FOR },
+    of: { type: KeywordTokenType.OF },
+    in: { type: KeywordTokenType.IN },
     true: { type: LiteralTokenType.VALUE, value: true },
     false: { type: LiteralTokenType.VALUE, value: false },
     void: { type: LiteralTokenType.TYPE, value: "void" },

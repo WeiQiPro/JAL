@@ -1,0 +1,25 @@
+fn main(): void {
+  let count := 0
+  print("current count: ", count)
+  while (count < 5) {
+    count = count + 1
+    print(count)
+  }
+  print("After while loop: ", count)
+
+  let items := [20, 33, 999]
+  print("List of items: ", items)
+  for i of items {
+    print(items[i])
+
+    if (items[i] == 20) {
+        items << 2000
+    }
+  }
+
+  for item in items {
+    print(item)
+  }
+
+  print(len(items))
+}

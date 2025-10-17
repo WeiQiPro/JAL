@@ -1,3 +1,5 @@
 {
-  "errors": []
+  "errors": [
+    "Type mismatch in list push: expected i32, got list<i32>"
+  ]
 }

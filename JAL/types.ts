@@ -14,6 +14,11 @@ export enum VariableTokenType {
   VARIABLE = "VARIABLE",
 }
 
+export enum BracketTokenType {
+  BRACKET_OPEN = "BRACKET_OPEN",
+  BRACKET_CLOSE = "BRACKET_CLOSE",
+}
+
 export enum SyntaxTokenType {
   ASSIGN_EQUAL = "ASSIGN_EQUAL",
   ASSIGN_COLON = "ASSIGN_COLON",
@@ -53,6 +58,10 @@ export enum BuiltinFunctionTokenType {
 export enum KeywordTokenType {
   IF = "IF",
   ELSE = "ELSE",
+  WHILE = "WHILE",
+  FOR = "FOR",
+  OF = "OF",
+  IN = "IN",
 }
 
 export enum MetaTokenType {
@@ -69,7 +78,8 @@ export type TokenType =
   | OperatorTokenType
   | BuiltinFunctionTokenType
   | KeywordTokenType
-  | MetaTokenType;
+  | MetaTokenType
+  | BracketTokenType;
 
 // Token interface
 export interface Token {
@@ -207,12 +217,26 @@ export interface FunctionCallExpression {
   arguments: Expression[];
 }
 
+export interface IndexAccess {
+  kind: "IndexAccess";
+  object: Expression;
+  index: Expression;
+}
+
+
+export interface ListExpression {
+  kind: "ListExpression";
+  elements: Expression[];
+}
+
 export type Expression =
   | Literal
   | Variable
   | BinaryExpression
   | CallExpression
-  | FunctionCallExpression;
+  | FunctionCallExpression
+  | IndexAccess
+  | ListExpression;
 
 export interface VariableDeclaration {
   kind: "VariableDeclaration";
@@ -248,7 +272,7 @@ export interface ListPushStatement {
 
 export interface ReturnStatement {
   kind: "ReturnStatement";
-  argument: Expression;
+  argument?: Expression;
 }
 
 export interface IfStatement {
@@ -258,6 +282,27 @@ export interface IfStatement {
   alternate?: BlockStatement;
 }
 
+export interface WhileStatement {
+  kind: "WhileStatement";
+  condition: Expression;
+  body: BlockStatement;
+}
+
+export interface ForStatement {
+  kind: "ForStatement";
+  variable: string;
+  iterable: Expression;
+  body: BlockStatement;
+  isIndex: boolean;
+}
+
+export interface AssignmentStatement {
+  kind: "AssignmentStatement";
+  target: string;
+  value: Expression
+}
+
+
 export type Statement =
   | VariableDeclaration
   | ExpressionStatement
@@ -265,7 +310,10 @@ export type Statement =
   | FunctionDeclaration
   | ListPushStatement
   | ReturnStatement
-  | IfStatement;
+  | IfStatement
+  | WhileStatement
+  | ForStatement
+  | AssignmentStatement;
 
 export interface Parameter {
   name: string;

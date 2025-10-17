@@ -1,0 +1,212 @@
+// Comprehensive JAL Program demonstrating all language features
+
+// ===== FUNCTION DECLARATIONS WITH PARAMETERS AND RETURN TYPES =====
+fn add(a: int, b: int): int {
+  return a + b
+}
+
+fn multiply(x: float, y: float): float {
+  return x * y
+}
+
+fn isEven(n: int): int {
+  if (n == 0) {
+    return 1
+  } else {
+    return 0
+  }
+}
+
+fn fibonacci(n: int): int {
+  if (n <= 1) {
+    return n
+  } else {
+    let left := fibonacci(n - 1)
+    let right := fibonacci(n - 2)
+    return left + right
+  }
+}
+
+// ===== MAIN FUNCTION - ENTRY POINT =====
+fn main(): void {
+  print("========== JAL Comprehensive Test ==========")
+  
+  // ===== VARIABLE DECLARATIONS =====
+  print("")
+  print("--- Variable Declarations ---")
+  let x: int = 10
+  const y: int = 20
+  let z := 30
+  const name := "JAL"
+  let isActive := true
+  let value := 3.14
+  
+  print("Variables declared successfully")
+  
+  // ===== BINARY OPERATIONS =====
+  print("")
+  print("--- Binary Operations ---")
+  let sum: int = x + y
+  let diff := z - x
+  let product := x * 5
+  let quotient := z / 2
+  let remainder := z % 7
+  
+  print("Addition: ")
+  print(sum)
+  print("Subtraction: ")
+  print(diff)
+  print("Multiplication: ")
+  print(product)
+  print("Division: ")
+  print(quotient)
+  
+  // ===== COMPARISONS AND CONDITIONS =====
+  print("")
+  print("--- Comparison Operators ---")
+  
+  if (x < y) {
+    print("x is less than y")
+  }
+  
+  if (x == 10) {
+    print("x equals 10")
+  }
+  
+  if (z > x) {
+    print("z is greater than x")
+  }
+  
+  if (y != x) {
+    print("y is not equal to x")
+  }
+  
+  if (x <= 10) {
+    print("x is less than or equal to 10")
+  }
+  
+  if (y >= 20) {
+    print("y is greater than or equal to 20")
+  }
+  
+  // ===== FUNCTION CALLS =====
+  print("")
+  print("--- Function Calls ---")
+  let result := add(5, 7)
+  print("add(5, 7) = ")
+  print(result)
+  
+  let fib5 := fibonacci(5)
+  print("fibonacci(5) = ")
+  print(fib5)
+  
+  // ===== LIST OPERATIONS =====
+  print("")
+  print("--- List Operations ---")
+  let numbers := [1, 2, 3, 4, 5]
+  print("Original list: ")
+  print(numbers)
+  
+  numbers << 6
+  print("After push 6: ")
+  print(numbers)
+  
+  numbers << 7
+  print("After push 7: ")
+  print(numbers)
+  
+  // ===== LIST INDEXING =====
+  let numLength := len(numbers)
+  print("")
+  print("--- List Indexing ---")
+  print("First element: ")
+  print(numbers[0])
+  print("Third element: ")
+  print(numbers[2])
+  print("Last element: ")
+  print(numbers[numLength - 1])
+  
+  // ===== FOR LOOPS - INDEX BASED =====
+  print("")
+  print("--- For Loop (Index Based) ---")
+  let colors := ["red", "green", "blue"]
+  for i of colors {
+    print("Index: ")
+    print(i)
+  }
+  
+  // ===== FOR LOOPS - VALUE BASED =====
+  print("")
+  print("--- For Loop (Value Based) ---")
+  for color in colors {
+    print("Color: ")
+    print(color)
+  }
+  
+  // ===== WHILE LOOPS =====
+  print("")
+  print("--- While Loop ---")
+  let counter := 0
+  while (counter < 3) {
+    print("Counter: ")
+    print(counter)
+    counter = counter + 1
+  }
+  
+  // ===== NESTED CONTROL FLOW =====
+  print("")
+  print("--- Nested Control Flow ---")
+  let matrix := [1, 2, 3, 4, 5]
+  for num in matrix {
+    if (num > 2) {
+      print("Found number greater than 2: ")
+      print(num)
+    }
+  }
+  
+  // ===== BUILT-IN FUNCTIONS =====
+  print("")
+  print("--- Built-in Functions ---")
+  
+  let arr := [10, 20, 30]
+  print("Length of array: ")
+  print(len(arr))
+  
+  print("Type of 42: ")
+  print(type(42))
+  
+  print("Type of 'hello': ")
+  print(type("hello"))
+  
+  print("Type of array: ")
+  print(type(arr))
+  
+  print("String conversion: ")
+  print(stringify(100))
+  
+  print("Number conversion: ")
+  print(toNumber("42"))
+  
+  // ===== COMPLEX EXPRESSIONS =====
+  print("")
+  print("--- Complex Expressions ---")
+  let complex := (10 + 5) * 2 - 8 / 4
+  print("(10 + 5) * 2 - 8 / 4 = ")
+  print(complex)
+  
+  // ===== MULTIPLE STATEMENTS IN BLOCKS =====
+  print("")
+  print("--- Block Statements ---")
+  if (true) {
+    let blockVar := 100
+    print("Inside if block: ")
+    print(blockVar)
+    let another := blockVar + 50
+    print("Another variable: ")
+    print(another)
+  }
+  
+  // ===== FINAL OUTPUT =====
+  print("")
+  print("========== Test Complete ==========")
+}

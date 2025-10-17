@@ -5,6 +5,7 @@ import {
   Expression,
   FunctionCallExpression,
   FunctionDeclaration,
+  IfStatement,
   ListPushStatement,
   Literal,
   OperatorTokenType,
@@ -25,6 +26,8 @@ export class Interpreter {
   > = new Map();
   private returnValue: RuntimeValue | undefined = undefined;
   private shouldReturn = false;
+  private steps: string[] = [];
+  private depth = 0;
   private lib: Library;
 
   constructor() {
@@ -36,17 +39,34 @@ export class Interpreter {
     this.lib = new Library(this);
   }
 
+  private addStep(message: string): void {
+    const indent = "  ".repeat(this.depth);
+    this.steps.push(`${indent}${message}`);
+  }
+
   execute(program: Program): void {
     try {
+      this.addStep("=== EXECUTION START ===");
+      this.addStep("");
+
       // First pass: collect function declarations
+      this.addStep("PASS 1: Collecting function declarations...");
       for (const stmt of program.body) {
         if (stmt.kind === "FunctionDeclaration") {
+          this.addStep(
+            `  Found function: ${(stmt as unknown as { name: string }).name}`,
+          );
           this.registerFunction(stmt);
         }
       }
+      this.addStep(`Total functions registered: ${this.functions.size}`);
+      this.addStep("");
 
       // Second pass: execute statements (skip function declarations and expression statements)
+      this.addStep("PASS 2: Executing global statements...");
+      this.addStep("");
       for (const stmt of program.body) {
+        // Skip function declarations (already registered) and expression statements
         if (
           stmt.kind === "FunctionDeclaration" ||
           stmt.kind === "ExpressionStatement"
@@ -59,15 +79,27 @@ export class Interpreter {
 
       // Third pass: execute main function if it exists
       if (this.functions.has("main")) {
+        this.addStep("");
+        this.addStep("PASS 3: Executing main()...");
+        this.addStep("");
         this.shouldReturn = false;
         this.returnValue = undefined;
         const mainFunc = this.functions.get("main")!;
 
         this.pushEnvironment();
+        this.depth++;
+        this.addStep("Enter function scope");
+
         this.executeBlockStatement(mainFunc.body);
+
+        this.depth--;
         this.popEnvironment();
       }
+
+      this.addStep("");
+      this.addStep("=== EXECUTION END ===");
     } catch (error) {
+      this.addStep(`ERROR: ${error}`);
       console.error("Runtime error:", error);
       throw error;
     }
@@ -141,12 +173,16 @@ export class Interpreter {
         this.executeVariableDeclaration(stmt);
         break;
       case "ExpressionStatement":
+        this.addStep(`Executing expression statement`);
+        this.depth++;
         this.evaluateExpression(stmt.expression);
+        this.depth--;
         break;
       case "BlockStatement":
         this.executeBlockStatement(stmt);
         break;
       case "FunctionDeclaration":
+        // Already registered in first pass
         break;
       case "ListPushStatement":
         this.executeListPushStatement(stmt);
@@ -157,6 +193,15 @@ export class Interpreter {
       case "IfStatement":
         this.executeIfStatement(stmt);
         break;
+      case "WhileStatement":
+        this.executeWhileStatement(stmt);
+        break;
+      case "ForStatement":
+        this.executeForStatement(stmt);
+        break;
+      case "AssignmentStatement":
+        this.executeAssignmentStatement(stmt);
+        break;
       default: {
         const unknownStmt = stmt as Record<string, unknown>;
         throw new Error(`Unknown statement kind: ${unknownStmt.kind}`);
@@ -164,15 +209,129 @@ export class Interpreter {
     }
   }
 
-  private executeIfStatement(stmt: any): void {
+  private executeAssignmentStatement(stmt: any): void {
+    const value = this.evaluateExpression(stmt.value);
+    this.setVariable(stmt.target, value);
+  }
+
+  private executeWhileStatement(stmt: any): void {
+    while (true) {
+      const conditionValue = this.evaluateExpression(stmt.condition);
+      if (!this.isTruthy(conditionValue)) {
+        break;
+      }
+      this.executeBlockStatement(stmt.body);
+      if (this.shouldReturn) break;
+    }
+  }
+
+  private executeForStatement(stmt: any): void {
+    const iterableValue = this.evaluateExpression(stmt.iterable);
+
+    if (!Array.isArray(iterableValue)) {
+      throw new Error("For loop requires a list");
+    }
+
+    if (stmt.isIndex) {
+      for (let i = 0; i < iterableValue.length; i++) {
+        this.pushEnvironment(); // NEW SCOPE EACH ITERATION
+        this.defineVariable(stmt.variable, i, false);
+        this.executeBlockStatement(stmt.body);
+        this.popEnvironment(); // EXIT SCOPE EACH ITERATION
+        if (this.shouldReturn) break;
+      }
+    } else {
+      for (const value of iterableValue) {
+        this.pushEnvironment(); // NEW SCOPE EACH ITERATION
+        this.defineVariable(stmt.variable, value, false);
+        this.executeBlockStatement(stmt.body);
+        this.popEnvironment(); // EXIT SCOPE EACH ITERATION
+        if (this.shouldReturn) break;
+      }
+    }
+  }
+
+  private executeVariableDeclaration(decl: VariableDeclaration): void {
+    let value: RuntimeValue = null;
+
+    if (decl.initializer) {
+      this.depth++;
+      value = this.evaluateExpression(decl.initializer);
+      this.depth--;
+    }
+
+    this.defineVariable(decl.name, value, decl.mutable ?? true);
+    const mutability = decl.mutable ?? true ? "let" : "const";
+    this.addStep(`${mutability} ${decl.name} = ${JSON.stringify(value)}`);
+  }
+
+  private executeBlockStatement(block: BlockStatement): void {
+    this.addStep("Enter block {");
+    this.depth++;
+    this.pushEnvironment();
+
+    for (const stmt of block.body) {
+      this.executeStatement(stmt);
+      if (this.shouldReturn) break;
+    }
+
+    this.popEnvironment();
+    this.depth--;
+    this.addStep("Exit block }");
+  }
+
+  private executeListPushStatement(stmt: ListPushStatement): void {
+    const target = this.evaluateExpression(stmt.target);
+    this.depth++;
+    const value = this.evaluateExpression(stmt.value);
+    this.depth--;
+
+    if (!Array.isArray(target)) {
+      throw new Error(
+        `Cannot push to non-list type: ${typeof target}`,
+      );
+    }
+
+    // If value is also an array, spread its elements
+    if (Array.isArray(value)) {
+      target.push(...value);
+      this.addStep(`Push [${value.join(", ")}] to list (spread)`);
+    } else {
+      target.push(value);
+      this.addStep(`Push ${JSON.stringify(value)} to list`);
+    }
+  }
+
+  private executeReturnStatement(stmt: ReturnStatement): void {
+    if (stmt.argument) {
+      this.depth++;
+      const value = this.evaluateExpression(stmt.argument);
+      this.depth--;
+      this.returnValue = value;
+      this.addStep(`Return ${JSON.stringify(value)}`);
+    } else {
+      this.returnValue = undefined;
+      this.addStep(`Return void`);
+    }
+    this.shouldReturn = true;
+  }
+
+  private executeIfStatement(stmt: IfStatement): void {
+    this.depth++;
     const conditionValue = this.evaluateExpression(stmt.condition);
+    this.depth--;
 
     const isTruthy = this.isTruthy(conditionValue);
+    this.addStep(`If condition evaluated to: ${isTruthy}`);
 
     if (isTruthy) {
+      this.addStep("Taking if branch");
       this.executeBlockStatement(stmt.consequent);
     } else if (stmt.alternate) {
+      this.addStep("Taking else branch");
       this.executeBlockStatement(stmt.alternate);
+    } else {
+      this.addStep("No else branch, skipping");
     }
   }
 
@@ -185,49 +344,6 @@ export class Interpreter {
     return true;
   }
 
-  private executeVariableDeclaration(decl: VariableDeclaration): void {
-    let value: RuntimeValue = null;
-
-    if (decl.initializer) {
-      value = this.evaluateExpression(decl.initializer);
-    }
-
-    this.defineVariable(decl.name, value, decl.mutable ?? true);
-  }
-
-  private executeBlockStatement(block: BlockStatement): void {
-    this.pushEnvironment();
-
-    for (const stmt of block.body) {
-      this.executeStatement(stmt);
-      if (this.shouldReturn) break;
-    }
-
-    this.popEnvironment();
-  }
-
-  private executeListPushStatement(stmt: ListPushStatement): void {
-    const target = this.evaluateExpression(stmt.target);
-    const value = this.evaluateExpression(stmt.value);
-
-    if (!Array.isArray(target)) {
-      throw new Error(
-        `Cannot push to non-list type: ${typeof target}`,
-      );
-    }
-
-    if (Array.isArray(value)) {
-      target.push(...value);
-    } else {
-      target.push(value);
-    }
-  }
-
-  private executeReturnStatement(stmt: ReturnStatement): void {
-    this.returnValue = this.evaluateExpression(stmt.argument);
-    this.shouldReturn = true;
-  }
-
   private evaluateExpression(expr: Expression): RuntimeValue {
     switch (expr.kind) {
       case "Literal":
@@ -238,6 +354,10 @@ export class Interpreter {
         return this.evaluateBinaryExpression(expr);
       case "FunctionCallExpression":
         return this.evaluateFunctionCall(expr);
+      case "ListExpression":
+        return this.evaluateListExpression(expr);
+      case "IndexAccess":
+        return this.evaluateIndexAccess(expr as any);
       case "CallExpression":
         throw new Error("CallExpression not yet implemented");
       default: {
@@ -245,6 +365,20 @@ export class Interpreter {
         throw new Error(`Unknown expression kind: ${unknownExpr.kind}`);
       }
     }
+  }
+
+  private evaluateIndexAccess(expr: any): RuntimeValue {
+    const obj = this.evaluateExpression(expr.object);
+    const index = this.evaluateExpression(expr.index);
+
+    if (!Array.isArray(obj) || typeof index !== "number") {
+      throw new Error("Cannot index non-list or invalid index");
+    }
+    return obj[index] ?? null;
+  }
+
+  private evaluateListExpression(expr: any): RuntimeValue {
+    return expr.elements.map((el: Expression) => this.evaluateExpression(el));
   }
 
   private evaluateLiteral(lit: Literal): RuntimeValue {
@@ -259,62 +393,88 @@ export class Interpreter {
     return this.getVariable(varName);
   }
 
-private evaluateBinaryExpression(expr: BinaryExpression): RuntimeValue {
-  const left = this.evaluateExpression(expr.left);
-  const right = this.evaluateExpression(expr.right);
+  private evaluateBinaryExpression(expr: BinaryExpression): RuntimeValue {
+    this.addStep(`Binary operation: ${expr.operator}`);
+    this.depth++;
+    const left = this.evaluateExpression(expr.left);
+    this.addStep(`Left operand: ${JSON.stringify(left)}`);
+    const right = this.evaluateExpression(expr.right);
+    this.addStep(`Right operand: ${JSON.stringify(right)}`);
+    this.depth--;
 
-  const op = expr.operator as OperatorTokenType;
+    const op = expr.operator as OperatorTokenType;
 
-  // Handle comparisons
-  if (op === OperatorTokenType.EQUAL_EQUAL) {
-    return left === right;
-  }
-  if (op === OperatorTokenType.NOT_EQUAL) {
-    return left !== right;
-  }
+    // Handle comparisons
+    if (op === OperatorTokenType.EQUAL_EQUAL) {
+      const result = left === right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
+    if (op === OperatorTokenType.NOT_EQUAL) {
+      const result = left !== right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
 
-  // Numeric comparisons
-  if (typeof left !== "number" || typeof right !== "number") {
-    throw new Error(
-      `Comparison requires numeric operands, got ${typeof left} and ${typeof right}`
-    );
-  }
+    if (typeof left !== "number" || typeof right !== "number") {
+      throw new Error(
+        `Binary operation requires numeric operands, got ${typeof left} and ${typeof right}`,
+      );
+    }
 
-  if (op === OperatorTokenType.LESS_THAN) {
-    return left < right;
-  }
-  if (op === OperatorTokenType.LESS_EQUAL) {
-    return left <= right;
-  }
-  if (op === OperatorTokenType.GREATER_THAN) {
-    return left > right;
-  }
-  if (op === OperatorTokenType.GREATER_EQUAL) {
-    return left >= right;
-  }
+    // Numeric comparisons
+    if (op === OperatorTokenType.LESS_THAN) {
+      const result = left < right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
+    if (op === OperatorTokenType.LESS_EQUAL) {
+      const result = left <= right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
+    if (op === OperatorTokenType.GREATER_THAN) {
+      const result = left > right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
+    if (op === OperatorTokenType.GREATER_EQUAL) {
+      const result = left >= right;
+      this.addStep(`Result: ${result}`);
+      return result;
+    }
 
-  // Arithmetic operations
-  switch (op) {
-    case OperatorTokenType.PLUS:
-      return left + right;
-    case OperatorTokenType.MINUS:
-      return left - right;
-    case OperatorTokenType.MULTIPLY:
-      return left * right;
-    case OperatorTokenType.DIVIDE:
-      if (right === 0) {
-        throw new Error("Division by zero");
-      }
-      return left / right;
-    case OperatorTokenType.MOD:
-      if (right === 0) {
-        throw new Error("Modulo by zero");
-      }
-      return left % right;
-    default:
-      throw new Error(`Unknown operator: ${op}`);
+    // Arithmetic operations
+    let result: number;
+    switch (op) {
+      case OperatorTokenType.PLUS:
+        result = left + right;
+        break;
+      case OperatorTokenType.MINUS:
+        result = left - right;
+        break;
+      case OperatorTokenType.MULTIPLY:
+        result = left * right;
+        break;
+      case OperatorTokenType.DIVIDE:
+        if (right === 0) {
+          throw new Error("Division by zero");
+        }
+        result = left / right;
+        break;
+      case OperatorTokenType.MOD:
+        if (right === 0) {
+          throw new Error("Modulo by zero");
+        }
+        result = left % right;
+        break;
+      default:
+        throw new Error(`Unknown operator: ${op}`);
+    }
+
+    this.addStep(`Result: ${result}`);
+    return result;
   }
-}
 
   private evaluateFunctionCall(expr: FunctionCallExpression): RuntimeValue {
     if (expr.callee.kind !== "Variable") {
@@ -322,9 +482,14 @@ private evaluateBinaryExpression(expr: BinaryExpression): RuntimeValue {
     }
 
     const funcName = expr.callee.name;
+    this.addStep(`Calling function: ${funcName}()`);
 
+    // Check for built-in functions first
     if (this.lib.isBuiltIn(funcName)) {
-      return this.lib.call(funcName, expr.arguments);
+      this.depth++;
+      const result = this.lib.call(funcName, expr.arguments);
+      this.depth--;
+      return result;
     }
 
     const func = this.functions.get(funcName);
@@ -339,14 +504,32 @@ private evaluateBinaryExpression(expr: BinaryExpression): RuntimeValue {
       );
     }
 
-    const argValues = expr.arguments.map((arg) => this.evaluateExpression(arg));
+    // Evaluate arguments
+    this.depth++;
+    this.addStep("Evaluating arguments:");
+    const argValues = expr.arguments.map((arg, idx) => {
+      this.depth++;
+      const val = this.evaluateExpression(arg);
+      this.addStep(`Arg ${idx}: ${JSON.stringify(val)}`);
+      this.depth--;
+      return val;
+    });
+    this.depth--;
 
+    // Create new scope for function execution
     this.pushEnvironment();
+    this.depth++;
+    this.addStep("Enter function scope");
 
+    // Bind parameters to arguments
     for (let i = 0; i < func.params.length; i++) {
       this.defineVariable(func.params[i].name, argValues[i], false);
+      this.addStep(
+        `Param ${func.params[i].name} = ${JSON.stringify(argValues[i])}`,
+      );
     }
 
+    // Execute function body
     const prevShouldReturn = this.shouldReturn;
     const prevReturnValue = this.returnValue;
 
@@ -356,10 +539,13 @@ private evaluateBinaryExpression(expr: BinaryExpression): RuntimeValue {
     this.executeBlockStatement(func.body);
 
     const result = this.returnValue ?? null;
+    this.addStep(`Exit function, returning: ${JSON.stringify(result)}`);
 
+    // Restore previous state
     this.shouldReturn = prevShouldReturn;
     this.returnValue = prevReturnValue;
 
+    this.depth--;
     this.popEnvironment();
 
     return result;
@@ -377,7 +563,17 @@ private evaluateBinaryExpression(expr: BinaryExpression): RuntimeValue {
     return result;
   }
 
+  getExecutionSteps(): string[] {
+    return this.steps;
+  }
+
+  // Public method for Library to evaluate expressions
   evaluateExpressionPublic(expr: Expression): RuntimeValue {
     return this.evaluateExpression(expr);
+  }
+
+  // Public method for Library to add execution steps
+  addExecutionStep(message: string): void {
+    this.addStep(message);
   }
 }

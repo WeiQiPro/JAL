@@ -2,12 +2,11 @@ import { TypeChecker } from "./JAL/checker.ts";
 import { Parser } from "./JAL/parser.ts";
 import { Tokenizer } from "./JAL/tokenizer.ts";
 import { Interpreter } from "./JAL/interpreter.ts";
-import { DebuggerInterpreter } from "./JAL/debugger.ts";
 
 function main(_args: string[]) {
   try {
     const debugMode = _args.includes("--debug") || _args.includes("-d");
-    const output = _args.includes("-o") || _args.includes("--output")
+    const output = _args.includes("-o") || _args.includes("--output");
 
     const source = _args.find((arg) => arg.endsWith(".jal")) as string;
     if (!source) {
@@ -37,8 +36,26 @@ function main(_args: string[]) {
     const _C = new TypeChecker();
 
     const tokens = _T.tokens;
+    if (debugMode) {
+      Deno.writeTextFileSync(
+        "./outputs/token.json",
+        JSON.stringify(tokens, null, 2),
+      );
+    }
     const ast = _P.parseProgram();
+    if (debugMode) {
+      Deno.writeTextFileSync(
+        "./outputs/AST.json",
+        JSON.stringify(ast, null, 2),
+      );
+    }
     const checker = _C.check(ast);
+    if (debugMode) {
+      Deno.writeTextFileSync(
+        "./outputs/walker.json",
+        JSON.stringify(checker, null, 2),
+      );
+    }
 
     if (checker.errors.length > 0) {
       console.log("\n=== TYPE CHECKING ERRORS ===");
@@ -46,31 +63,37 @@ function main(_args: string[]) {
         console.log(checker.errors[i]);
       }
 
-      Deno.writeTextFileSync(
-        "./outputs/AST.json",
-        JSON.stringify(ast, null, 2),
-      );
-      Deno.writeTextFileSync(
-        "./outputs/token.json",
-        JSON.stringify(tokens, null, 2),
-      );
-      Deno.writeTextFileSync(
-        "./outputs/walker.json",
-        JSON.stringify(checker, null, 2),
-      );
+      if (ast) {
+        Deno.writeTextFileSync(
+          "./outputs/AST.json",
+          JSON.stringify(ast, null, 2),
+        );
+      }
+      if (tokens) {
+        Deno.writeTextFileSync(
+          "./outputs/token.json",
+          JSON.stringify(tokens, null, 2),
+        );
+      }
+
+      if (checker) {
+        Deno.writeTextFileSync(
+          "./outputs/walker.json",
+          JSON.stringify(checker, null, 2),
+        );
+      }
 
       Deno.exit(1);
     }
 
-    // Choose interpreter based on debug flag
     if (debugMode) {
       console.log("Running in DEBUG mode...\n");
-      const _I = new DebuggerInterpreter();
+      const _I = new Interpreter();
       _I.execute(ast);
       const steps = _I.getExecutionSteps();
       if (output) console.log(steps.join("\n"));
 
-      Deno.writeTextFileSync("./outputs/EXE.json", JSON.stringify(steps))
+      Deno.writeTextFileSync("./outputs/EXE.json", JSON.stringify(steps));
 
       Deno.writeTextFileSync(
         "./outputs/AST.json",

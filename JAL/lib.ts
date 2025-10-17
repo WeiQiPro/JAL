@@ -14,7 +14,7 @@ export class Library {
       ["print", this.print.bind(this)],
       ["len", this.len.bind(this)],
       ["type", this.type.bind(this)],
-      ["toString", this.toString.bind(this)],
+      ["stringify", this.stringify.bind(this)],
       ["toNumber", this.toNumber.bind(this)],
     ]);
   }
@@ -67,9 +67,9 @@ export class Library {
   }
 
   // Convert to string
-  private toString(args: Expression[]): RuntimeValue {
+  private stringify(args: Expression[]): RuntimeValue {
     if (args.length !== 1) {
-      throw new Error("toString() expects 1 argument");
+      throw new Error("stringify() expects 1 argument");
     }
     const value = this.interpreter.evaluateExpressionPublic(args[0]);
     return this.formatValue(value);

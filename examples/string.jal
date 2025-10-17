@@ -1,0 +1,4 @@
+fn main(): void {
+    let numString := stringify(100)
+    print(numString)
+}
