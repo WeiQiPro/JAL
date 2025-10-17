@@ -29,7 +29,7 @@ export class DebuggerInterpreter {
   private depth = 0;
   private lib: Library;
 
-  constructor(debug = false) {
+  constructor() {
     this.globalEnv = {
       variables: new Map(),
       parent: null,
