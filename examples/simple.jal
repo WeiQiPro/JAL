@@ -1,0 +1,28 @@
+
+fn add(a: float, b: float): float {
+    return a + b
+}
+
+fn sub(a: int, b: int): int {
+    return a - b
+}
+
+fn main(): void {
+    let y := [1, 2, 3]
+    const x: list = [ "hello", "world"]
+    const dist := (12 * 12 + 10 * 10) / 2
+    let a := 10.6
+    let b: float = 7.3
+    let c := 20
+    let d := 40
+
+    let sum := add(a, b)
+    let unsum := sub(c, d)
+
+    y << [4, 3, 2, 1]
+
+    print(y)
+    print(x)
+    print(sum)
+    print(dist)
+}

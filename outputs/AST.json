@@ -1,0 +1,372 @@
+{
+  "kind": "Program",
+  "body": [
+    {
+      "kind": "FunctionDeclaration",
+      "name": "add",
+      "returnType": {
+        "kind": "float",
+        "bits": 32
+      },
+      "params": [
+        {
+          "name": "a",
+          "type": {
+            "kind": "float",
+            "bits": 32
+          }
+        },
+        {
+          "name": "b",
+          "type": {
+            "kind": "float",
+            "bits": 32
+          }
+        }
+      ],
+      "body": {
+        "kind": "BlockStatement",
+        "body": [
+          {
+            "kind": "ReturnStatement",
+            "argument": {
+              "kind": "BinaryExpression",
+              "operator": "PLUS",
+              "left": {
+                "kind": "Variable",
+                "name": "a"
+              },
+              "right": {
+                "kind": "Variable",
+                "name": "b"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "FunctionDeclaration",
+      "name": "sub",
+      "returnType": {
+        "kind": "int",
+        "bits": 32
+      },
+      "params": [
+        {
+          "name": "a",
+          "type": {
+            "kind": "int",
+            "bits": 32
+          }
+        },
+        {
+          "name": "b",
+          "type": {
+            "kind": "int",
+            "bits": 32
+          }
+        }
+      ],
+      "body": {
+        "kind": "BlockStatement",
+        "body": [
+          {
+            "kind": "ReturnStatement",
+            "argument": {
+              "kind": "BinaryExpression",
+              "operator": "MINUS",
+              "left": {
+                "kind": "Variable",
+                "name": "a"
+              },
+              "right": {
+                "kind": "Variable",
+                "name": "b"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "FunctionDeclaration",
+      "name": "main",
+      "returnType": {
+        "kind": "void"
+      },
+      "params": [],
+      "body": {
+        "kind": "BlockStatement",
+        "body": [
+          {
+            "kind": "VariableDeclaration",
+            "mutable": true,
+            "name": "y",
+            "typeAnnotation": {
+              "kind": "list",
+              "elementType": {
+                "kind": "void"
+              }
+            },
+            "initializer": {
+              "kind": "Literal",
+              "value": [
+                1,
+                2,
+                3
+              ]
+            }
+          },
+          {
+            "kind": "VariableDeclaration",
+            "mutable": false,
+            "name": "x",
+            "typeAnnotation": {
+              "kind": "list",
+              "elementType": {
+                "kind": "void"
+              }
+            },
+            "initializer": {
+              "kind": "Literal",
+              "value": [
+                "hello",
+                "world"
+              ]
+            }
+          },
+          {
+            "kind": "VariableDeclaration",
+            "mutable": false,
+            "name": "dist",
+            "typeAnnotation": {
+              "kind": "int",
+              "bits": 32
+            },
+            "initializer": {
+              "kind": "BinaryExpression",
+              "operator": "DIVIDE",
+              "left": {
+                "kind": "BinaryExpression",
+                "operator": "PLUS",
+                "left": {
+                  "kind": "BinaryExpression",
+                  "operator": "MULTIPLY",
+                  "left": {
+                    "kind": "Literal",
+                    "value": 12
+                  },
+                  "right": {
+                    "kind": "Literal",
+                    "value": 12
+                  }
+                },
+                "right": {
+                  "kind": "BinaryExpression",
+                  "operator": "MULTIPLY",
+                  "left": {
+                    "kind": "Literal",
+                    "value": 10
+                  },
+                  "right": {
+                    "kind": "Literal",
+                    "value": 10
+                  }
+                }
+              },
+              "right": {
+                "kind": "Literal",
+                "value": 2
+              }
+            }
+          },
+          {
+            "kind": "VariableDeclaration",
+            "mutable": true,
+            "name": "a",
+            "typeAnnotation": {
+              "kind": "float",
+              "bits": 32
+            },
+            "initializer": {
+              "kind": "Literal",
+              "value": 10.6
+            }
+          },
+          {
+            "kind": "VariableDeclaration",
+            "mutable": true,
+            "name": "b",
+            "typeAnnotation": {
+              "kind": "float",
+              "bits": 32
+            },
+            "initializer": {
+              "kind": "Literal",
+              "value": 7.3
+            }
+          },
+          {
+            "kind": "VariableDeclaration",
+            "mutable": true,
+            "name": "c",
+            "typeAnnotation": {
+              "kind": "int",
+              "bits": 32
+            },
+            "initializer": {
+              "kind": "Literal",
+              "value": 20
+            }
+          },
+          {
+            "kind": "VariableDeclaration",
+            "mutable": true,
+            "name": "d",
+            "typeAnnotation": {
+              "kind": "int",
+              "bits": 32
+            },
+            "initializer": {
+              "kind": "Literal",
+              "value": 40
+            }
+          },
+          {
+            "kind": "VariableDeclaration",
+            "mutable": true,
+            "name": "sum",
+            "typeAnnotation": {
+              "kind": "float",
+              "bits": 32
+            },
+            "initializer": {
+              "kind": "FunctionCallExpression",
+              "callee": {
+                "kind": "Variable",
+                "name": "add"
+              },
+              "arguments": [
+                {
+                  "kind": "Variable",
+                  "name": "a"
+                },
+                {
+                  "kind": "Variable",
+                  "name": "b"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "VariableDeclaration",
+            "mutable": true,
+            "name": "unsum",
+            "typeAnnotation": {
+              "kind": "int",
+              "bits": 32
+            },
+            "initializer": {
+              "kind": "FunctionCallExpression",
+              "callee": {
+                "kind": "Variable",
+                "name": "sub"
+              },
+              "arguments": [
+                {
+                  "kind": "Variable",
+                  "name": "c"
+                },
+                {
+                  "kind": "Variable",
+                  "name": "d"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "ListPushStatement",
+            "target": {
+              "kind": "Variable",
+              "name": "y"
+            },
+            "value": {
+              "kind": "Literal",
+              "value": [
+                4,
+                3,
+                2,
+                1
+              ]
+            }
+          },
+          {
+            "kind": "ExpressionStatement",
+            "expression": {
+              "kind": "FunctionCallExpression",
+              "callee": {
+                "kind": "Variable",
+                "name": "print"
+              },
+              "arguments": [
+                {
+                  "kind": "Variable",
+                  "name": "y"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "ExpressionStatement",
+            "expression": {
+              "kind": "FunctionCallExpression",
+              "callee": {
+                "kind": "Variable",
+                "name": "print"
+              },
+              "arguments": [
+                {
+                  "kind": "Variable",
+                  "name": "x"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "ExpressionStatement",
+            "expression": {
+              "kind": "FunctionCallExpression",
+              "callee": {
+                "kind": "Variable",
+                "name": "print"
+              },
+              "arguments": [
+                {
+                  "kind": "Variable",
+                  "name": "sum"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "ExpressionStatement",
+            "expression": {
+              "kind": "FunctionCallExpression",
+              "callee": {
+                "kind": "Variable",
+                "name": "print"
+              },
+              "arguments": [
+                {
+                  "kind": "Variable",
+                  "name": "dist"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
